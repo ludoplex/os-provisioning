@@ -26,7 +26,7 @@ IMAGE_TYPES = re.compile('image/(gif|p?jpeg|(x-)?png)')
 ACCEPT_FILE_TYPES = IMAGE_TYPES
 THUMB_MAX_WIDTH = 80
 THUMB_MAX_HEIGHT = 80
-THUMB_SUFFIX = '.'+str(THUMB_MAX_WIDTH)+'x'+str(THUMB_MAX_HEIGHT)+'.png'
+THUMB_SUFFIX = f'.{THUMB_MAX_WIDTH}x{THUMB_MAX_HEIGHT}.png'
 EXPIRATION_TIME = 300  # seconds
 # If set to None, only allow redirects to the referer protocol+host.
 # Set to a regexp for custom pattern matching against the redirect value:
@@ -67,13 +67,10 @@ class UploadHandler(CORSHandler):
         if redirect:
             if REDIRECT_ALLOW_TARGET:
                 return REDIRECT_ALLOW_TARGET.match(redirect)
-            referer = self.request.headers['referer']
-            if referer:
+            if referer := self.request.headers['referer']:
                 from urlparse import urlparse
                 parts = urlparse(referer)
-                redirect_allow_target = '^' + re.escape(
-                    parts.scheme + '://' + parts.netloc + '/'
-                )
+                redirect_allow_target = f"^{re.escape(f'{parts.scheme}://{parts.netloc}/')}"
             return re.match(redirect_allow_target, redirect)
         return False
 
@@ -115,8 +112,7 @@ class UploadHandler(CORSHandler):
         for name, fieldStorage in self.request.POST.items():
             if type(fieldStorage) is unicode:
                 continue
-            result = {}
-            result['name'] = urllib.unquote(fieldStorage.filename)
+            result = {'name': urllib.unquote(fieldStorage.filename)}
             result['type'] = fieldStorage.type
             result['size'] = self.get_file_size(fieldStorage.file)
             if self.validate(result):
@@ -125,12 +121,12 @@ class UploadHandler(CORSHandler):
                     result
                 )
                 if key is not None:
-                    result['url'] = self.request.host_url + '/' + key
+                    result['url'] = f'{self.request.host_url}/{key}'
                     result['deleteUrl'] = result['url']
                     result['deleteType'] = 'DELETE'
                     if thumbnail_key is not None:
                         result['thumbnailUrl'] = self.request.host_url +\
-                             '/' + thumbnail_key
+                                 '/' + thumbnail_key
                 else:
                     result['error'] = 'Failed to store uploaded file.'
             results.append(result)
@@ -163,7 +159,7 @@ class FileHandler(CORSHandler):
     def get(self, content_type, data_hash, file_name):
         content_type = self.normalize(content_type)
         file_name = self.normalize(file_name)
-        key = content_type + '/' + data_hash + '/' + file_name
+        key = f'{content_type}/{data_hash}/{file_name}'
         data = memcache.get(key)
         if data is None:
             return self.error(404)
@@ -178,13 +174,13 @@ class FileHandler(CORSHandler):
         self.response.headers['Content-Type'] = content_type
         # Cache for the expiration time:
         self.response.headers['Cache-Control'] = 'public,max-age=%d' \
-            % EXPIRATION_TIME
+                % EXPIRATION_TIME
         self.response.write(data)
 
     def delete(self, content_type, data_hash, file_name):
         content_type = self.normalize(content_type)
         file_name = self.normalize(file_name)
-        key = content_type + '/' + data_hash + '/' + file_name
+        key = f'{content_type}/{data_hash}/{file_name}'
         result = {key: memcache.delete(key)}
         content_type = urllib.unquote(content_type)
         if IMAGE_TYPES.match(content_type):
